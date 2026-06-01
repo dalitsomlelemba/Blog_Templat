@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wildlife Reserve Tracking System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&family=Share+Tech+Mono&family=Exo+2:wght@300;400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root {
+    --bg-dark: #050d10;
+    --bg-panel: #0a1a1f;
+    --bg-card: #0d2028;
+    --accent-green: #00ff88;
+    --accent-cyan: #00e5ff;
+    --accent-amber: #ffb300;
+    --accent-red: #ff3d57;
+    --accent-purple: #c054ff;
+    --text-primary: #e8f4f8;
+    --text-muted: #5a8a99;
+    --border: rgba(0,229,255,0.15);
+    --glow: 0 0 20px rgba(0,229,255,0.3);
+    --lion-color: #ffb300;
+    --elephant-color: #8884d8;
+    --giraffe-color: #00e5ff;
+    --hippo-color: #00ff88;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: var(--bg-dark);
+    color: var(--text-primary);
+    font-family: 'Exo 2', sans-serif;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── TOP BAR ── */
+  header {
+    background: linear-gradient(90deg, #050d10 0%, #0d2028 50%, #050d10 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 1000;
+  }
+  header::after {
+    content:'';
+    position:absolute;
+    bottom:0; left:0; right:0;
+    height:2px;
+    background: linear-gradient(90deg, transparent, var(--accent-cyan), transparent);
+  }
+  .header-left { display:flex; align-items:center; gap:14px; }
+  .logo-icon {
+    width:42px; height:42px;
+    border: 2px solid var(--accent-cyan);
+    border-radius:8px;
+    display:flex; align-items:center; justify-content:center;
+    font-size:22px;
+    box-shadow: var(--glow);
+    animation: pulse-border 3s infinite;
+  }
+  @keyframes pulse-border {
+    0%,100%{ box-shadow: 0 0 10px rgba(0,229,255,0.3); }
+    50%{ box-shadow: 0 0 25px rgba(0,229,255,0.7); }
+  }
+  .header-title h1 {
+    font-family: 'Orbitron', monospace;
+    font-size: 16px; font-weight:800;
+    letter-spacing:2px;
+    color: var(--accent-cyan);
+    text-shadow: 0 0 10px rgba(0,229,255,0.5);
+  }
+  .header-title p {
+    font-size:10px; color: var(--text-muted);
+    font-family:'Share Tech Mono', monospace;
+    letter-spacing:1px;
+  }
+  .header-right { display:flex; align-items:center; gap:20px; }
+  .live-badge {
+    display:flex; align-items:center; gap:6px;
+    background: rgba(0,255,136,0.1);
+    border: 1px solid var(--accent-green);
+    border-radius:20px; padding:4px 12px;
+    font-family:'Share Tech Mono'; font-size:11px;
+    color: var(--accent-green);
+  }
+  .live-dot {
+    width:7px; height:7px; border-radius:50%;
+    background: var(--accent-green);
+    animation: blink 1.2s infinite;
+  }
+  @keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0.2;} }
+  .clock {
+    font-family:'Share Tech Mono'; font-size:13px;
+    color: var(--text-primary); letter-spacing:1px;
+  }
+  .reserve-select {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    padding:5px 10px; border-radius:6px;
+    font-family:'Exo 2'; font-size:12px;
+    cursor:pointer; outline:none;
+  }
+
+  /* ── MAIN LAYOUT ── */
+  .main { display:flex; flex:1; overflow:hidden; }
+
+  /* ── LEFT PANEL ── */
+  .left-panel {
+    width:240px; flex-shrink:0;
+    background: var(--bg-panel);
+    border-right: 1px solid var(--border);
+    display:flex; flex-direction:column;
+    overflow-y:auto; overflow-x:hidden;
+  }
+  .panel-section { padding:12px 14px; border-bottom: 1px solid var(--border); }
+  .panel-label {
+    font-family:'Orbitron'; font-size:9px;
+    letter-spacing:2px; color: var(--text-muted);
+    text-transform:uppercase; margin-bottom:10px;
+  }
+
+  /* Species cards */
+  .species-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius:8px; padding:10px 12px;
+    margin-bottom:8px; cursor:pointer;
+    transition: all 0.25s; position:relative;
+    overflow:hidden;
+  }
+  .species-card::before {
+    content:''; position:absolute;
+    left:0; top:0; bottom:0; width:3px;
+  }
+  .species-card.lion::before{ background:var(--lion-color); }
+  .species-card.elephant::before{ background:var(--elephant-color); }
+  .species-card.giraffe::before{ background:var(--giraffe-color); }
+  .species-card.hippo::before{ background:var(--hippo-color); }
+  .species-card:hover, .species-card.active {
+    background: rgba(0,229,255,0.07);
+    border-color: rgba(0,229,255,0.35);
+    transform:translateX(3px);
+  }
+  .species-header { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+  .species-emoji { font-size:20px; }
+  .species-name {
+    font-weight:600; font-size:13px;
+    flex:1;
+  }
+  .species-toggle {
+    width:28px; height:16px;
+    background: var(--bg-dark);
+    border-radius:8px; position:relative;
+    cursor:pointer; transition:background 0.3s;
+    border:1px solid var(--border);
+  }
+  .species-toggle.on { background: var(--accent-green); border-color:var(--accent-green); }
+  .species-toggle::after {
+    content:''; position:absolute;
+    width:12px; height:12px;
+    background:#fff; border-radius:50%;
+    top:1px; left:1px;
+    transition:transform 0.3s;
+  }
+  .species-toggle.on::after { transform:translateX(12px); }
+  .species-stats { display:flex; gap:12px; }
+  .stat-item { text-align:center; }
+  .stat-val {
+    font-family:'Share Tech Mono'; font-size:16px; font-weight:700;
+    display:block;
+  }
+  .stat-lbl { font-size:9px; color:var(--text-muted); text-transform:uppercase; letter-spacing:1px; }
+  .lion .stat-val{ color:var(--lion-color); }
+  .elephant .stat-val{ color:var(--elephant-color); }
+  .giraffe .stat-val{ color:var(--giraffe-color); }
+  .hippo .stat-val{ color:var(--hippo-color); }
+
+  /* Zone legend */
+  .zone-item { display:flex; align-items:center; gap:8px; margin-bottom:6px; font-size:11px; }
+  .zone-swatch {
+    width:20px; height:12px; border-radius:3px; flex-shrink:0;
+  }
+
+  /* Alert feed */
+  .alert-item {
+    background: var(--bg-card);
+    border-left:3px solid transparent;
+    border-radius:0 6px 6px 0;
+    padding:7px 10px; margin-bottom:6px;
+    font-size:11px; line-height:1.5;
+    animation:fadeIn 0.5s;
+  }
+  @keyframes fadeIn{ from{opacity:0;transform:translateY(-5px);} to{opacity:1;transform:none;} }
+  .alert-item.warn{ border-color:var(--accent-amber); background:rgba(255,179,0,0.07); }
+  .alert-item.info{ border-color:var(--accent-cyan); background:rgba(0,229,255,0.05); }
+  .alert-item.danger{ border-color:var(--accent-red); background:rgba(255,61,87,0.08); }
+  .alert-item.ok{ border-color:var(--accent-green); background:rgba(0,255,136,0.05); }
+  .alert-time{ font-family:'Share Tech Mono'; font-size:9px; color:var(--text-muted); }
+
+  /* ── MAP ── */
+  .map-container { flex:1; position:relative; }
+  #map { width:100%; height:100%; }
+
+  /* Map toolbar */
+  .map-toolbar {
+    position:absolute; top:12px; left:12px; z-index:800;
+    display:flex; flex-direction:column; gap:6px;
+  }
+  .map-btn {
+    width:36px; height:36px;
+    background: rgba(10,26,31,0.9);
+    border:1px solid var(--border);
+    border-radius:8px; color:var(--text-primary);
+    font-size:14px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    transition:all 0.2s; backdrop-filter:blur(6px);
+  }
+  .map-btn:hover{ border-color:var(--accent-cyan); color:var(--accent-cyan); box-shadow:var(--glow); }
+  .map-btn.active{ border-color:var(--accent-green); color:var(--accent-green); }
+
+  /* Scale / coord bar */
+  .map-statusbar {
+    position:absolute; bottom:8px; left:50%; transform:translateX(-50%);
+    z-index:800;
+    background:rgba(10,26,31,0.85); border:1px solid var(--border);
+    border-radius:20px; padding:4px 16px;
+    font-family:'Share Tech Mono'; font-size:10px;
+    color:var(--text-muted); display:flex; gap:20px;
+    backdrop-filter:blur(6px);
+  }
+  .coord-val{ color:var(--text-primary); }
+
+  /* ── RIGHT PANEL ── */
+  .right-panel {
+    width:260px; flex-shrink:0;
+    background: var(--bg-panel);
+    border-left: 1px solid var(--border);
+    display:flex; flex-direction:column;
+    overflow-y:auto;
+  }
+
+  /* Selected animal detail */
+  .animal-detail {
+    padding:14px;
+    border-bottom:1px solid var(--border);
+  }
+  .detail-header{ display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+  .detail-avatar{
+    width:46px; height:46px; border-radius:10px;
+    font-size:26px; display:flex; align-items:center; justify-content:center;
+    border:2px solid var(--border);
+  }
+  .detail-name{ font-size:15px; font-weight:700; }
+  .detail-id{ font-family:'Share Tech Mono'; font-size:10px; color:var(--text-muted); }
+  .detail-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .detail-cell{
+    background:var(--bg-card); border-radius:7px;
+    padding:8px 10px; border:1px solid var(--border);
+  }
+  .detail-cell-label{ font-size:9px; text-transform:uppercase; letter-spacing:1px; color:var(--text-muted); }
+  .detail-cell-val{ font-family:'Share Tech Mono'; font-size:13px; margin-top:2px; }
+
+  /* Movement path toggle */
+  .path-controls { padding:12px 14px; border-bottom:1px solid var(--border); }
+  .path-range { width:100%; accent-color:var(--accent-cyan); margin-top:6px; }
+
+  /* Mini chart */
+  .mini-chart { padding:12px 14px; border-bottom:1px solid var(--border); }
+  canvas.sparkline { width:100%; height:60px; display:block; }
+
+  /* Herd list */
+  .herd-list { padding:12px 14px; flex:1; }
+  .herd-item {
+    display:flex; align-items:center; gap:8px;
+    padding:7px 10px; border-radius:7px;
+    cursor:pointer; margin-bottom:4px;
+    transition:background 0.2s; font-size:12px;
+    border:1px solid transparent;
+  }
+  .herd-item:hover{ background:var(--bg-card); border-color:var(--border); }
+  .herd-item.selected{ background:rgba(0,229,255,0.08); border-color:rgba(0,229,255,0.25); }
+  .herd-dot{
+    width:10px; height:10px; border-radius:50%; flex-shrink:0;
+  }
+  .herd-info{ flex:1; }
+  .herd-name{ font-weight:600; }
+  .herd-loc{ font-size:10px; color:var(--text-muted); font-family:'Share Tech Mono'; }
+  .herd-status{
+    font-size:9px; padding:2px 7px; border-radius:10px;
+    background:rgba(0,255,136,0.1); color:var(--accent-green);
+    border:1px solid rgba(0,255,136,0.2);
+  }
+  .herd-status.alert{ background:rgba(255,179,0,0.1); color:var(--accent-amber); border-color:rgba(255,179,0,0.2); }
+  .herd-status.danger{ background:rgba(255,61,87,0.1); color:var(--accent-red); border-color:rgba(255,61,87,0.2); }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar{ width:4px; }
+  ::-webkit-scrollbar-track{ background:transparent; }
+  ::-webkit-scrollbar-thumb{ background:var(--border); border-radius:2px; }
+
+  /* Leaflet custom popup */
+  .leaflet-popup-content-wrapper{
+    background:var(--bg-panel) !important;
+    border:1px solid var(--border) !important;
+    border-radius:10px !important;
+    box-shadow:0 4px 24px rgba(0,0,0,0.6) !important;
+    color:var(--text-primary) !important;
+  }
+  .leaflet-popup-tip{ background:var(--bg-panel) !important; }
+  .popup-inner{ font-family:'Exo 2'; font-size:12px; padding:2px; }
+  .popup-title{ font-family:'Orbitron'; font-size:11px; letter-spacing:1px; margin-bottom:6px; }
+  .popup-row{ display:flex; justify-content:space-between; margin-bottom:3px; color:var(--text-muted); }
+  .popup-row span:last-child{ color:var(--text-primary); font-family:'Share Tech Mono'; }
+</style>
+</head>
+<body>
+
+<!-- ── HEADER ── -->
+<header>
+  <div class="header-left">
+    <div class="logo-icon">🌍</div>
+    <div class="header-title">
+      <h1>WILDLIFE TRACK SYS</h1>
+      <p>RESERVE MANAGEMENT &amp; ANIMAL MONITORING PLATFORM</p>
+    </div>
+  </div>
+  <div class="header-right">
+    <select class="reserve-select" id="reserveSelect">
+      <option>Liwonde National Park</option>
+      <option>Majete Wildlife Reserve</option>
+      <option>Nyika National Park</option>
+      <option>Kasungu National Park</option>
+      <option>Nkhotakota Wildlife Reserve</option>
+    </select>
+    <div class="live-badge"><div class="live-dot"></div>LIVE TRACKING</div>
+    <div class="clock" id="clock">--:--:--</div>
+  </div>
+</header>
+
+<!-- ── MAIN ── -->
+<div class="main">
+
+  <!-- LEFT PANEL -->
+  <div class="left-panel">
+
+    <div class="panel-section">
+      <div class="panel-label">Species Monitor</div>
+      <!-- Lion -->
+      <div class="species-card lion active" data-species="lion" onclick="focusSpecies('lion',this)">
+        <div class="species-header">
+          <span class="species-emoji">🦁</span>
+          <span class="species-name">Lions</span>
+          <div class="species-toggle on" id="toggle-lion" onclick="event.stopPropagation();toggleSpecies('lion',this)"></div>
+        </div>
+        <div class="species-stats">
+          <div class="stat-item"><span class="stat-val" id="cnt-lion">14</span><span class="stat-lbl">Total</span></div>
+          <div class="stat-item"><span class="stat-val" id="active-lion">11</span><span class="stat-lbl">Active</span></div>
+          <div class="stat-item"><span class="stat-val" id="alert-lion">2</span><span class="stat-lbl">Alert</span></div>
+        </div>
+      </div>
+      <!-- Elephant -->
+      <div class="species-card elephant" data-species="elephant" onclick="focusSpecies('elephant',this)">
+        <div class="species-header">
+          <span class="species-emoji">🐘</span>
+          <span class="species-name">Elephants</span>
+          <div class="species-toggle on" id="toggle-elephant" onclick="event.stopPropagation();toggleSpecies('elephant',this)"></div>
+        </div>
+        <div class="species-stats">
+          <div class="stat-item"><span class="stat-val" id="cnt-elephant">32</span><span class="stat-lbl">Total</span></div>
+          <div class="stat-item"><span class="stat-val" id="active-elephant">28</span><span class="stat-lbl">Active</span></div>
+          <div class="stat-item"><span class="stat-val" id="alert-elephant">1</span><span class="stat-lbl">Alert</span></div>
+        </div>
+      </div>
+      <!-- Giraffe -->
+      <div class="species-card giraffe" data-species="giraffe" onclick="focusSpecies('giraffe',this)">
+        <div class="species-header">
+          <span class="species-emoji">🦒</span>
+          <span class="species-name">Giraffes</span>
+          <div class="species-toggle on" id="toggle-giraffe" onclick="event.stopPropagation();toggleSpecies('giraffe',this)"></div>
+        </div>
+        <div class="species-stats">
+          <div class="stat-item"><span class="stat-val" id="cnt-giraffe">19</span><span class="stat-lbl">Total</span></div>
+          <div class="stat-item"><span class="stat-val" id="active-giraffe">17</span><span class="stat-lbl">Active</span></div>
+          <div class="stat-item"><span class="stat-val" id="alert-giraffe">0</span><span class="stat-lbl">Alert</span></div>
+        </div>
+      </div>
+      <!-- Hippo -->
+      <div class="species-card hippo" data-species="hippo" onclick="focusSpecies('hippo',this)">
+        <div class="species-header">
+          <span class="species-emoji">🦛</span>
+          <span class="species-name">Hippos</span>
+          <div class="species-toggle on" id="toggle-hippo" onclick="event.stopPropagation();toggleSpecies('hippo',this)"></div>
+        </div>
+        <div class="species-stats">
+          <div class="stat-item"><span class="stat-val" id="cnt-hippo">9</span><span class="stat-lbl">Total</span></div>
+          <div class="stat-item"><span class="stat-val" id="active-hippo">9</span><span class="stat-lbl">Active</span></div>
+          <div class="stat-item"><span class="stat-val" id="alert-hippo">0</span><span class="stat-lbl">Alert</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Zone Legend (mirrors the map overlays) -->
+    <div class="panel-section">
+      <div class="panel-label">Map Legend</div>
+      <div class="zone-item">
+        <div class="zone-swatch" style="background:rgba(255,61,87,0.5);border:1px dashed #ff3d57;"></div>
+        <span>Reserve Boundary</span>
+      </div>
+      <div class="zone-item">
+        <div class="zone-swatch" style="background:rgba(0,180,120,0.35);border:1px solid #00b478;"></div>
+        <span>Protected Zone</span>
+      </div>
+      <div class="zone-item">
+        <div class="zone-swatch" style="background:rgba(0,200,220,0.5);height:4px;border-radius:2px;"></div>
+        <span>River / Water Body</span>
+      </div>
+      <div class="zone-item">
+        <div class="zone-swatch" style="background:rgba(255,61,87,0.6);border:1px solid #ff3d57;"></div>
+        <span>Sub-zone Boundary</span>
+      </div>
+      <div class="zone-item">
+        <div class="zone-swatch" style="background:var(--lion-color);border-radius:50%;height:10px;width:10px;"></div>
+        <span>🦁 Lion collar</span>
+      </div>
+      <div class="zone-item">
+        <div class="zone-swatch" style="background:var(--elephant-color);border-radius:50%;height:10px;width:10px;"></div>
+        <span>🐘 Elephant collar</span>
+      </div>
+      <div class="zone-item">
+        <div class="zone-swatch" style="background:var(--giraffe-color);border-radius:50%;height:10px;width:10px;"></div>
+        <span>🦒 Giraffe collar</span>
+      </div>
+      <div class="zone-item">
+        <div class="zone-swatch" style="background:var(--hippo-color);border-radius:50%;height:10px;width:10px;"></div>
+        <span>🦛 Hippo collar</span>
+      </div>
+    </div>
+
+    <!-- Alert Feed -->
+    <div class="panel-section" style="flex:1;">
+      <div class="panel-label">Live Alerts</div>
+      <div id="alertFeed"></div>
+    </div>
+  </div>
+
+  <!-- MAP -->
+  <div class="map-container">
+    <div id="map"></div>
+    <div class="map-toolbar">
+      <button class="map-btn" title="Zoom In" onclick="map.zoomIn()">+</button>
+      <button class="map-btn" title="Zoom Out" onclick="map.zoomOut()">−</button>
+      <button class="map-btn active" id="btn-satellite" title="Satellite" onclick="switchBasemap('satellite',this)">🛰</button>
+      <button class="map-btn" id="btn-topo" title="Topo" onclick="switchBasemap('topo',this)">🗺</button>
+      <button class="map-btn" title="Fit Reserve" onclick="fitBounds()">⊡</button>
+      <button class="map-btn" id="btn-heatmap" title="Toggle Heatmap" onclick="toggleHeatmap(this)">🔥</button>
+      <button class="map-btn" id="btn-paths" title="Show Paths" onclick="toggleAllPaths(this)">📍</button>
+    </div>
+    <div class="map-statusbar">
+      <span>Lat: <span class="coord-val" id="coordLat">-15.120</span></span>
+      <span>Lng: <span class="coord-val" id="coordLng">35.280</span></span>
+      <span>Zoom: <span class="coord-val" id="zoomLvl">11</span></span>
+      <span id="selectedLabel" style="color:var(--accent-cyan);">No selection</span>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="right-panel">
+    <div class="animal-detail" id="animalDetail">
+      <div class="detail-header">
+        <div class="detail-avatar" id="detailAvatar" style="border-color:var(--accent-amber);">🦁</div>
+        <div>
+          <div class="detail-name" id="detailName">Simba — M</div>
+          <div class="detail-id" id="detailId">TAG: LW-L001 | COLLAR: GPS-44A</div>
+        </div>
+      </div>
+      <div class="detail-grid">
+        <div class="detail-cell">
+          <div class="detail-cell-label">Speed</div>
+          <div class="detail-cell-val" id="detailSpeed" style="color:var(--accent-green);">4.2 km/h</div>
+        </div>
+        <div class="detail-cell">
+          <div class="detail-cell-label">Status</div>
+          <div class="detail-cell-val" id="detailStatus" style="color:var(--accent-green);">Active</div>
+        </div>
+        <div class="detail-cell">
+          <div class="detail-cell-label">Last Fix</div>
+          <div class="detail-cell-val" id="detailFix">2m ago</div>
+        </div>
+        <div class="detail-cell">
+          <div class="detail-cell-label">Battery</div>
+          <div class="detail-cell-val" id="detailBattery" style="color:var(--accent-amber);">78%</div>
+        </div>
+        <div class="detail-cell">
+          <div class="detail-cell-label">Zone</div>
+          <div class="detail-cell-val" id="detailZone">Core A</div>
+        </div>
+        <div class="detail-cell">
+          <div class="detail-cell-label">Fixes/day</div>
+          <div class="detail-cell-val" id="detailFixes">48</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Path hour slider -->
+    <div class="path-controls">
+      <div class="panel-label">Movement Trail — Last <span id="trailHrs">24</span> hrs</div>
+      <input type="range" min="1" max="72" value="24" class="path-range" id="pathSlider"
+             oninput="document.getElementById('trailHrs').textContent=this.value; updatePaths();">
+    </div>
+
+    <!-- Sparkline -->
+    <div class="mini-chart">
+      <div class="panel-label">Activity (today)</div>
+      <canvas id="sparkCanvas"></canvas>
+    </div>
+
+    <!-- Herd List -->
+    <div class="herd-list">
+      <div class="panel-label">Individual Animals</div>
+      <div id="herdList"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── DATA ──────────────────────────────────────────────────────────────────────
+const RESERVE_CENTER = [-15.12, 35.28];
+
+const ANIMALS = [
+  // Lions
+  { id:'LW-L001', name:'Simba', species:'lion', sex:'M', emoji:'🦁', lat:-15.07, lng:35.22, speed:4.2, status:'Active', battery:78, zone:'Core A', fixes:48 },
+  { id:'LW-L002', name:'Nala', species:'lion', sex:'F', emoji:'🦁', lat:-15.09, lng:35.31, speed:2.1, status:'Active', battery:92, zone:'Core A', fixes:48 },
+  { id:'LW-L003', name:'Mufasa', species:'lion', sex:'M', emoji:'🦁', lat:-15.13, lng:35.18, speed:0.0, status:'Resting', battery:55, zone:'Buffer', fixes:24 },
+  { id:'LW-L004', name:'Sarabi', species:'lion', sex:'F', emoji:'🦁', lat:-15.18, lng:35.27, speed:6.8, status:'Hunting', battery:81, zone:'South', fixes:48 },
+  { id:'LW-L005', name:'Kovu', species:'lion', sex:'M', emoji:'🦁', lat:-15.06, lng:35.35, speed:1.2, status:'Active', battery:44, zone:'North', fixes:12, alertMsg:'Low battery' },
+  // Elephants
+  { id:'LW-E001', name:'Tembo', species:'elephant', sex:'M', emoji:'🐘', lat:-15.10, lng:35.25, speed:3.5, status:'Active', battery:88, zone:'Core B', fixes:48 },
+  { id:'LW-E002', name:'Njovu', species:'elephant', sex:'F', emoji:'🐘', lat:-15.15, lng:35.32, speed:2.2, status:'Active', battery:76, zone:'South', fixes:48 },
+  { id:'LW-E003', name:'Dumbo', species:'elephant', sex:'M', emoji:'🐘', lat:-15.08, lng:35.20, speed:4.0, status:'Active', battery:91, zone:'Core A', fixes:48 },
+  { id:'LW-E004', name:'Ellie', species:'elephant', sex:'F', emoji:'🐘', lat:-15.19, lng:35.24, speed:1.8, status:'Grazing', battery:60, zone:'Buffer', fixes:24 },
+  { id:'LW-E005', name:'Raja', species:'elephant', sex:'M', emoji:'🐘', lat:-15.22, lng:35.30, speed:5.1, status:'Alert', battery:72, zone:'South', fixes:48, alertMsg:'Near boundary' },
+  // Giraffes
+  { id:'LW-G001', name:'Twiga', species:'giraffe', sex:'F', emoji:'🦒', lat:-15.05, lng:35.29, speed:6.2, status:'Active', battery:85, zone:'North', fixes:48 },
+  { id:'LW-G002', name:'Longneck', species:'giraffe', sex:'M', emoji:'🦒', lat:-15.11, lng:35.37, speed:3.3, status:'Active', battery:93, zone:'East', fixes:48 },
+  { id:'LW-G003', name:'Spots', species:'giraffe', sex:'F', emoji:'🦒', lat:-15.16, lng:35.22, speed:4.8, status:'Grazing', battery:67, zone:'Core B', fixes:24 },
+  // Hippos
+  { id:'LW-H001', name:'Kiboko', species:'hippo', sex:'M', emoji:'🦛', lat:-15.12, lng:35.27, speed:1.1, status:'In Water', battery:88, zone:'River', fixes:48 },
+  { id:'LW-H002', name:'Mto', species:'hippo', sex:'F', emoji:'🦛', lat:-15.09, lng:35.26, speed:0.5, status:'In Water', battery:79, zone:'River', fixes:48 },
+  { id:'LW-H003', name:'Bahati', species:'hippo', sex:'M', emoji:'🦛', lat:-15.14, lng:35.28, speed:2.0, status:'Active', battery:95, zone:'River', fixes:48 },
+];
+
+const SPECIES_COLORS = {
+  lion:'#ffb300', elephant:'#8884d8', giraffe:'#00e5ff', hippo:'#00ff88'
+};
+
+// Historical path generation (simulate 24h of movement)
+function generatePath(animal, hours) {
+  const pts = [];
+  let lat = animal.lat, lng = animal.lng;
+  const steps = Math.min(hours * 2, 72);
+  for (let i = steps; i >= 0; i--) {
+    lat += (Math.random()-0.5)*0.008;
+    lng += (Math.random()-0.5)*0.008;
+    pts.push([lat, lng]);
+  }
+  pts.push([animal.lat, animal.lng]);
+  return pts;
+}
+
+// ── MAP INIT ──────────────────────────────────────────────────────────────────
+const map = L.map('map', {
+  center: RESERVE_CENTER, zoom: 11,
+  zoomControl: false,
+  attributionControl: true
+});
+
+const basemaps = {
+  satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution:'Esri World Imagery', maxZoom:18
+  }),
+  topo: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+    attribution:'OpenTopoMap', maxZoom:17
+  })
+};
+basemaps.satellite.addTo(map);
+
+// Update coord display
+map.on('mousemove', e => {
+  document.getElementById('coordLat').textContent = e.latlng.lat.toFixed(4);
+  document.getElementById('coordLng').textContent = e.latlng.lng.toFixed(4);
+});
+map.on('zoomend', ()=> document.getElementById('zoomLvl').textContent = map.getZoom());
+
+// ── RESERVE POLYGONS (approximate Liwonde-like boundary) ──────────────────────
+const reserveBoundary = [
+  [-14.97, 35.17], [-14.97, 35.43], [-15.07, 35.43],
+  [-15.07, 35.38], [-15.20, 35.38], [-15.20, 35.43],
+  [-15.30, 35.43], [-15.30, 35.15], [-15.10, 35.10],
+  [-14.97, 35.17]
+];
+L.polygon(reserveBoundary, {
+  color:'#ff3d57', weight:2, dashArray:'8,5',
+  fillColor:'#003322', fillOpacity:0.28
+}).addTo(map).bindPopup('<div class="popup-inner"><div class="popup-title" style="color:#ff3d57">RESERVE BOUNDARY</div><div class="popup-row"><span>Status</span><span>Protected</span></div></div>');
+
+// Sub-zone (inner red polygon)
+const innerZone = [
+  [-15.00, 35.20], [-15.00, 35.35], [-15.10, 35.37],
+  [-15.10, 35.32], [-15.18, 35.25], [-15.18, 35.20], [-15.00, 35.20]
+];
+L.polygon(innerZone, {
+  color:'#ff3d57', weight:2, dashArray:'none',
+  fillColor:'#002a1a', fillOpacity:0.22
+}).addTo(map);
+
+// River (polyline like the cyan wavy line)
+const riverLine = [
+  [-14.99, 35.30], [-15.03, 35.28], [-15.07, 35.27],
+  [-15.11, 35.27], [-15.14, 35.28], [-15.18, 35.29],
+  [-15.22, 35.30], [-15.26, 35.31]
+];
+L.polyline(riverLine, { color:'#00c8d8', weight:4, opacity:0.8, dashArray:'none' })
+  .addTo(map).bindPopup('<div class="popup-inner"><div class="popup-title" style="color:#00c8d8">SHIRE RIVER</div></div>');
+
+// ── ANIMAL MARKERS & PATHS ────────────────────────────────────────────────────
+const layerGroups = { lion: L.layerGroup(), elephant: L.layerGroup(), giraffe: L.layerGroup(), hippo: L.layerGroup() };
+const pathGroups = { lion: L.layerGroup(), elephant: L.layerGroup(), giraffe: L.layerGroup(), hippo: L.layerGroup() };
+const animalMarkers = {};
+const animalPaths = {};
+
+Object.values(layerGroups).forEach(g => g.addTo(map));
+Object.values(pathGroups).forEach(g => g.addTo(map));
+
+function createMarkerIcon(animal) {
+  const color = SPECIES_COLORS[animal.species];
+  const isAlert = animal.alertMsg;
+  return L.divIcon({
+    className:'',
+    html:`<div style="
+      width:${isAlert?28:22}px; height:${isAlert?28:22}px;
+      background:${color}22;
+      border:2px solid ${color};
+      border-radius:50%;
+      display:flex; align-items:center; justify-content:center;
+      font-size:${isAlert?14:11}px;
+      box-shadow:0 0 ${isAlert?14:7}px ${color}88;
+      cursor:pointer;
+      animation:${isAlert?'pulseM':'none'} 1.5s infinite;
+    ">${animal.emoji}</div>
+    <style>
+      @keyframes pulseM{0%,100%{box-shadow:0 0 8px ${color}88;}50%{box-shadow:0 0 20px ${color};}}
+    </style>`,
+    iconSize: [isAlert?28:22, isAlert?28:22],
+    iconAnchor: [isAlert?14:11, isAlert?14:11]
+  });
+}
+
+function buildPopup(a) {
+  return `<div class="popup-inner">
+    <div class="popup-title" style="color:${SPECIES_COLORS[a.species]}">${a.emoji} ${a.name} (${a.id})</div>
+    <div class="popup-row"><span>Sex</span><span>${a.sex}</span></div>
+    <div class="popup-row"><span>Speed</span><span>${a.speed} km/h</span></div>
+    <div class="popup-row"><span>Status</span><span>${a.status}</span></div>
+    <div class="popup-row"><span>Zone</span><span>${a.zone}</span></div>
+    <div class="popup-row"><span>Battery</span><span>${a.battery}%</span></div>
+    ${a.alertMsg?`<div style="color:#ff3d57;margin-top:5px;font-size:11px;">⚠ ${a.alertMsg}</div>`:''}
+  </div>`;
+}
+
+function initMarkers() {
+  ANIMALS.forEach(a => {
+    const marker = L.marker([a.lat, a.lng], { icon: createMarkerIcon(a) })
+      .addTo(layerGroups[a.species])
+      .bindPopup(buildPopup(a), { maxWidth:220 });
+    marker.on('click', () => selectAnimal(a));
+    animalMarkers[a.id] = marker;
+
+    const path = generatePath(a, 24);
+    const pl = L.polyline(path, {
+      color: SPECIES_COLORS[a.species], weight:1.5, opacity:0.5, dashArray:'4,3'
+    });
+    pathGroups[a.species].addLayer(pl);
+    animalPaths[a.id] = { pl, raw: path };
+  });
+}
+initMarkers();
+
+// ── ANIMAL SELECTION ──────────────────────────────────────────────────────────
+let selectedAnimal = ANIMALS[0];
+
+function selectAnimal(a) {
+  selectedAnimal = a;
+  document.getElementById('detailAvatar').textContent = a.emoji;
+  document.getElementById('detailAvatar').style.borderColor = SPECIES_COLORS[a.species];
+  document.getElementById('detailName').textContent = `${a.name} — ${a.sex}`;
+  document.getElementById('detailId').textContent = `TAG: ${a.id} | COLLAR: GPS-${Math.floor(Math.random()*90+10)}A`;
+  document.getElementById('detailSpeed').textContent = a.speed + ' km/h';
+  document.getElementById('detailStatus').textContent = a.status;
+  const bCol = a.battery > 50 ? 'var(--accent-green)' : a.battery>20 ? 'var(--accent-amber)' : 'var(--accent-red)';
+  document.getElementById('detailBattery').style.color = bCol;
+  document.getElementById('detailBattery').textContent = a.battery + '%';
+  document.getElementById('detailZone').textContent = a.zone;
+  document.getElementById('detailFix').textContent = (Math.floor(Math.random()*10)+1) + 'm ago';
+  document.getElementById('detailFixes').textContent = a.fixes;
+  document.getElementById('selectedLabel').textContent = `${a.emoji} ${a.name}`;
+  map.panTo([a.lat, a.lng]);
+  drawSparkline(a);
+
+  // Highlight in herd list
+  document.querySelectorAll('.herd-item').forEach(el => {
+    el.classList.toggle('selected', el.dataset.id === a.id);
+  });
+}
+selectAnimal(ANIMALS[0]);
+
+// ── HERD LIST ─────────────────────────────────────────────────────────────────
+function buildHerdList() {
+  const container = document.getElementById('herdList');
+  container.innerHTML = '';
+  ANIMALS.forEach(a => {
+    const div = document.createElement('div');
+    div.className = 'herd-item' + (a.id === selectedAnimal.id ? ' selected' : '');
+    div.dataset.id = a.id;
+    const statusClass = a.alertMsg ? 'danger' : (a.status==='Hunting'||a.status==='Alert' ? 'alert' : '');
+    div.innerHTML = `
+      <div class="herd-dot" style="background:${SPECIES_COLORS[a.species]}"></div>
+      <div class="herd-info">
+        <div class="herd-name">${a.emoji} ${a.name}</div>
+        <div class="herd-loc">${a.id} · ${a.zone}</div>
+      </div>
+      <div class="herd-status ${statusClass}">${a.status}</div>`;
+    div.onclick = () => selectAnimal(a);
+    container.appendChild(div);
+  });
+}
+buildHerdList();
+
+// ── SPARKLINE ─────────────────────────────────────────────────────────────────
+function drawSparkline(animal) {
+  const canvas = document.getElementById('sparkCanvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = canvas.offsetWidth * 2;
+  canvas.height = 120;
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0,0,w,h);
+
+  const pts = Array.from({length:24}, (_,i) => Math.random()*70+10);
+  const max = Math.max(...pts), min = Math.min(...pts);
+  const color = SPECIES_COLORS[animal.species];
+
+  ctx.beginPath();
+  pts.forEach((v,i) => {
+    const x = (i/(pts.length-1))*w;
+    const y = h - ((v-min)/(max-min))*h*0.8 - h*0.1;
+    i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+  });
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Fill
+  ctx.lineTo(w,h); ctx.lineTo(0,h); ctx.closePath();
+  const grad = ctx.createLinearGradient(0,0,0,h);
+  grad.addColorStop(0, color+'55');
+  grad.addColorStop(1, color+'00');
+  ctx.fillStyle = grad;
+  ctx.fill();
+}
+
+// ── TOGGLE SPECIES ────────────────────────────────────────────────────────────
+const speciesVisible = { lion:true, elephant:true, giraffe:true, hippo:true };
+
+function toggleSpecies(sp, btn) {
+  speciesVisible[sp] = !speciesVisible[sp];
+  btn.classList.toggle('on', speciesVisible[sp]);
+  if (speciesVisible[sp]) {
+    map.addLayer(layerGroups[sp]);
+    map.addLayer(pathGroups[sp]);
+  } else {
+    map.removeLayer(layerGroups[sp]);
+    map.removeLayer(pathGroups[sp]);
+  }
+}
+
+function focusSpecies(sp, card) {
+  document.querySelectorAll('.species-card').forEach(c => c.classList.remove('active'));
+  card.classList.add('active');
+  const first = ANIMALS.find(a => a.species === sp);
+  if (first) selectAnimal(first);
+}
+
+// ── BASEMAP SWITCH ────────────────────────────────────────────────────────────
+function switchBasemap(type, btn) {
+  document.querySelectorAll('.map-btn').forEach(b => {
+    if (b.id && b.id.startsWith('btn-')) b.classList.remove('active');
+  });
+  btn.classList.add('active');
+  Object.values(basemaps).forEach(l => map.removeLayer(l));
+  basemaps[type].addTo(map);
+  map.eachLayer(l => { if (l !== basemaps[type] && !(l instanceof L.Marker) && !(l instanceof L.Polyline) && !(l instanceof L.Polygon)) {}  });
+  basemaps[type].bringToBack();
+}
+
+function fitBounds() {
+  map.fitBounds(L.polygon(reserveBoundary).getBounds(), { padding:[20,20] });
+}
+
+let heatVisible = false;
+function toggleHeatmap(btn) {
+  heatVisible = !heatVisible;
+  btn.classList.toggle('active', heatVisible);
+  // Placeholder: in production would use Leaflet.heat
+}
+
+let pathsVisible = true;
+function toggleAllPaths(btn) {
+  pathsVisible = !pathsVisible;
+  btn.classList.toggle('active', pathsVisible);
+  Object.values(pathGroups).forEach(g => pathsVisible ? map.addLayer(g) : map.removeLayer(g));
+}
+
+function updatePaths() {
+  const hours = parseInt(document.getElementById('pathSlider').value);
+  Object.values(pathGroups).forEach(g => g.clearLayers());
+  ANIMALS.forEach(a => {
+    if (!speciesVisible[a.species]) return;
+    const path = generatePath(a, hours);
+    const pl = L.polyline(path, {
+      color: SPECIES_COLORS[a.species], weight:1.5, opacity:0.5, dashArray:'4,3'
+    });
+    pathGroups[a.species].addLayer(pl);
+    animalPaths[a.id] = { pl, raw: path };
+  });
+}
+
+// ── CLOCK ─────────────────────────────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent = now.toTimeString().slice(0,8);
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ── LIVE SIMULATED ALERTS ─────────────────────────────────────────────────────
+const alertTemplates = [
+  { type:'warn',   msg:'🦁 Simba approaching eastern boundary fence' },
+  { type:'info',   msg:'🐘 Herd of 6 elephants near river crossing' },
+  { type:'ok',     msg:'🦒 Twiga returned to core zone' },
+  { type:'danger', msg:'🦁 Raja (elephant) boundary breach detected!' },
+  { type:'info',   msg:'🦛 Kiboko entered deep-water zone' },
+  { type:'warn',   msg:'🦁 Nala collar battery below 20%' },
+  { type:'ok',     msg:'🐘 Tembo GPS fix updated successfully' },
+  { type:'info',   msg:'🦒 Longneck new position logged (East)' },
+  { type:'warn',   msg:'⚠ Vehicle detected in restricted buffer zone' },
+  { type:'ok',     msg:'📡 All collars reporting normally' },
+];
+
+let alertIndex = 0;
+function pushAlert() {
+  const feed = document.getElementById('alertFeed');
+  const tpl = alertTemplates[alertIndex % alertTemplates.length];
+  alertIndex++;
+  const div = document.createElement('div');
+  div.className = `alert-item ${tpl.type}`;
+  const now = new Date().toTimeString().slice(0,8);
+  div.innerHTML = `<div class="alert-time">${now}</div>${tpl.msg}`;
+  feed.insertBefore(div, feed.firstChild);
+  if (feed.children.length > 8) feed.removeChild(feed.lastChild);
+}
+// Seed initial alerts
+for (let i=0; i<5; i++) pushAlert();
+setInterval(pushAlert, 8000);
+
+// ── SIMULATED ANIMAL MOVEMENT ─────────────────────────────────────────────────
+function simulateMovement() {
+  ANIMALS.forEach(a => {
+    a.lat += (Math.random()-0.5)*0.004;
+    a.lng += (Math.random()-0.5)*0.004;
+    a.speed = Math.max(0, +(a.speed + (Math.random()-0.5)*0.8).toFixed(1));
+    const m = animalMarkers[a.id];
+    if (m) m.setLatLng([a.lat, a.lng]);
+  });
+}
+setInterval(simulateMovement, 5000);
+
+// ── RESIZE SPARKLINE ON WINDOW RESIZE ────────────────────────────────────────
+window.addEventListener('resize', () => drawSparkline(selectedAnimal));
+</script>
+</body>
+</html>
